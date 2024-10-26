@@ -5,8 +5,8 @@ import (
 )
 
 type BrokerFactory struct {
-	channel     string
 	redisBroker *RedisBroker
+	channel     string
 }
 
 func NewBrokerFactory(channel string, redisBroker *RedisBroker) *BrokerFactory {
