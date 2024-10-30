@@ -18,5 +18,10 @@ const (
 )
 
 const (
+	PubSub = "pub-sub"
+	Queue  = "queue"
+)
+
+const (
 	DefaultTimeout = 10 * time.Second
 )

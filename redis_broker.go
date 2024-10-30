@@ -2,38 +2,47 @@ package milvus_cdc
 
 import (
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
-	"time"
+	"sync"
+	"syscall"
 
 	"github.com/go-redis/redis/v8"
-	"github.com/milvus-io/milvus-sdk-go/milvus"
 )
 
 type RedisBroker struct {
 	sig      chan os.Signal
 	redisCli *RedisClient
-	milvus   []milvus.MilvusClient
-	timeout  time.Duration
+	milvus   []*MilvusClient
 }
 
-func NewRedisBroker(redis *redis.Client, milvus []milvus.MilvusClient, timeout time.Duration) *RedisBroker {
+func NewRedisBroker(redis *redis.Client, milvus []*MilvusClient) *RedisBroker {
 	redisCli := NewRedisClient(redis)
-	if timeout == 0 {
-		timeout = DefaultTimeout
-	}
 
 	return &RedisBroker{
 		sig:      make(chan os.Signal, 1),
 		redisCli: redisCli,
 		milvus:   milvus,
-		timeout:  timeout,
 	}
 }
 
-func (rb *RedisBroker) Start(channel string) error {
+func (rb *RedisBroker) Start(channel, pattern string) error {
+	switch pattern {
+	case PubSub:
+		return rb.pubSub(channel)
+	case Queue:
+		return rb.queue(channel)
+	}
+
+	return fmt.Errorf("pattern is invalid")
+}
+
+func (rb *RedisBroker) Stop() {
+	rb.sig <- syscall.SIGKILL
+}
+
+func (rb *RedisBroker) pubSub(channel string) error {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	subscriber := rb.redisCli.Subscribe(ctx, channel)
 	for i := 0; i < len(rb.milvus); i++ {
@@ -55,6 +64,39 @@ func (rb *RedisBroker) Start(channel string) error {
 	return nil
 }
 
+func (rb *RedisBroker) queue(channel string) error {
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	go func() {
+		for {
+			// using BRPop will wait with a timeout if the queue is empty. If timeout is 0 it will wait forever
+			message, err := rb.redisCli.BRPop(ctx, channel, 0)
+			if err != nil {
+				return
+			}
+
+			if len(message) < 2 {
+				continue
+			}
+
+			var wg sync.WaitGroup
+			for i := 0; i < len(rb.milvus); i++ {
+				wg.Add(1)
+				go func(idx int) {
+					defer wg.Done()
+					_ = rb.handle(message[1], idx)
+				}(i)
+			}
+
+			wg.Wait()
+		}
+	}()
+
+	<-rb.sig
+	cancelFunc()
+
+	return nil
+}
+
 func (rb *RedisBroker) handle(msg string, idx int) error {
 	var message MessageCDC
 
@@ -69,6 +111,10 @@ func (rb *RedisBroker) handle(msg string, idx int) error {
 func (rb *RedisBroker) sync(message *MessageCDC, idx int) error {
 	if message == nil {
 		return fmt.Errorf("message cdc not found")
+	}
+
+	if len(rb.milvus) <= idx {
+		return fmt.Errorf("milvus client not found")
 	}
 
 	switch message.Action {
@@ -94,162 +140,33 @@ func (rb *RedisBroker) sync(message *MessageCDC, idx int) error {
 }
 
 func (rb *RedisBroker) insert(cdc *MessageCDC, idx int) error {
-	ctx, cancel := context.WithTimeout(context.Background(), rb.timeout)
-	defer cancel()
-
-	vByte, err := hex.DecodeString(cdc.Vector)
-	if err != nil {
-		return err
-	}
-
-	_, status, err := rb.milvus[idx].Insert(ctx, &milvus.InsertParam{
-		CollectionName: cdc.CollectionName,
-		PartitionTag:   cdc.PartitionTag,
-		RecordArray: []milvus.Entity{
-			{
-				FloatData: DecodeUnsafeF32(vByte),
-			},
-		},
-		IDArray: []int64{cdc.Id},
-	})
-	if err != nil {
-		return err
-	}
-
-	if !status.Ok() {
-		return fmt.Errorf("%v", status.GetMessage())
-	}
-
-	return nil
+	return rb.milvus[idx].Insert(cdc.Vector, cdc.CollectionName, cdc.PartitionTag, cdc.Id)
 }
 
 func (rb *RedisBroker) delete(cdc *MessageCDC, idx int) error {
-	ctx, cancel := context.WithTimeout(context.Background(), rb.timeout)
-	defer cancel()
-
-	status, err := rb.milvus[idx].DeleteEntityByID(ctx, cdc.CollectionName,
-		cdc.PartitionTag, []int64{cdc.Id})
-	if err != nil {
-		return err
-	}
-
-	if !status.Ok() {
-		return fmt.Errorf("%v", status.GetMessage())
-	}
-
-	return nil
+	return rb.milvus[idx].Delete(cdc.CollectionName, cdc.PartitionTag, cdc.Id)
 }
 
 func (rb *RedisBroker) dropCollection(cdc *MessageCDC, idx int) error {
-	ctx, cancel := context.WithTimeout(context.Background(), rb.timeout)
-	defer cancel()
-
-	status, err := rb.milvus[idx].DropCollection(ctx, cdc.CollectionName)
-	if err != nil {
-		return err
-	}
-
-	if !status.Ok() {
-		return fmt.Errorf("%v", status.GetMessage())
-	}
-
-	return nil
+	return rb.milvus[idx].DropCollection(cdc.CollectionName)
 }
 
 func (rb *RedisBroker) createCollection(cdc *MessageCDC, idx int) error {
-	ctx, cancel := context.WithTimeout(context.Background(), rb.timeout)
-	defer cancel()
-
-	status, err := rb.milvus[idx].CreateCollection(ctx, milvus.CollectionParam{
-		CollectionName: cdc.CollectionName,
-		Dimension:      cdc.Dimension,
-		IndexFileSize:  cdc.IndexFileSize,
-		MetricType:     cdc.MetricType,
-	})
-
-	if err != nil {
-		return err
-	}
-
-	if !status.Ok() {
-		return fmt.Errorf("%v", status.GetMessage())
-	}
-
-	return nil
+	return rb.milvus[idx].CreateCollection(cdc.CollectionName, cdc.Dimension, cdc.IndexFileSize, cdc.MetricType)
 }
 
 func (rb *RedisBroker) createIndex(cdc *MessageCDC, idx int) error {
-	ctx, cancel := context.WithTimeout(context.Background(), rb.timeout)
-	defer cancel()
-
-	indexParam := &milvus.IndexParam{
-		CollectionName: cdc.CollectionName,
-		IndexType:      milvus.IndexType(cdc.IndexType),
-		ExtraParams:    cdc.ExtraParams,
-	}
-
-	status, err := rb.milvus[idx].CreateIndex(ctx, indexParam)
-	if err != nil {
-		return err
-	}
-
-	if !status.Ok() {
-		return fmt.Errorf("%v", status.GetMessage())
-	}
-
-	return nil
+	return rb.milvus[idx].CreateIndex(cdc.CollectionName, cdc.ExtraParams, cdc.IndexType)
 }
 
 func (rb *RedisBroker) dropIndex(cdc *MessageCDC, idx int) error {
-	ctx, cancel := context.WithTimeout(context.Background(), rb.timeout)
-	defer cancel()
-
-	status, err := rb.milvus[idx].DropIndex(ctx, cdc.CollectionName)
-	if err != nil {
-		return err
-	}
-
-	if !status.Ok() {
-		return fmt.Errorf("%v", status.GetMessage())
-	}
-
-	return nil
+	return rb.milvus[idx].DropIndex(cdc.CollectionName)
 }
 
 func (rb *RedisBroker) createPartition(cdc *MessageCDC, idx int) error {
-	ctx, cancel := context.WithTimeout(context.Background(), rb.timeout)
-	defer cancel()
-
-	status, err := rb.milvus[idx].CreatePartition(ctx, milvus.PartitionParam{
-		CollectionName: cdc.CollectionName,
-		PartitionTag:   cdc.PartitionTag,
-	})
-	if err != nil {
-		return err
-	}
-
-	if !status.Ok() {
-		return fmt.Errorf("%v", status.GetMessage())
-	}
-
-	return nil
+	return rb.milvus[idx].CreatePartition(cdc.CollectionName, cdc.PartitionTag)
 }
 
 func (rb *RedisBroker) dropPartition(cdc *MessageCDC, idx int) error {
-	ctx, cancel := context.WithTimeout(context.Background(), rb.timeout)
-	defer cancel()
-
-	status, err := rb.milvus[idx].DropPartition(ctx, milvus.PartitionParam{
-		CollectionName: cdc.CollectionName,
-		PartitionTag:   cdc.PartitionTag,
-	})
-	if err != nil {
-		return err
-	}
-
-	if !status.Ok() {
-		return fmt.Errorf("%v", status.GetMessage())
-	}
-
-	return nil
+	return rb.milvus[idx].DropPartition(cdc.CollectionName, cdc.PartitionTag)
 }
