@@ -110,7 +110,7 @@ func (mc *MilvusClient) DropCollection(collectionName string) error {
 	return nil
 }
 
-func (mc *MilvusClient) CreateCollection(collectionName string, dimension, indexSize int64, metric int32) error {
+func (mc *MilvusClient) CreateCollection(collectionName string, dimension, indexSize int64, metric milvus.MetricType) error {
 	ctx, cancel := context.WithTimeout(context.Background(), mc.timeout)
 	defer cancel()
 
@@ -118,7 +118,7 @@ func (mc *MilvusClient) CreateCollection(collectionName string, dimension, index
 		CollectionName: collectionName,
 		Dimension:      dimension,
 		IndexFileSize:  indexSize,
-		MetricType:     metric,
+		MetricType:     int32(metric),
 	})
 
 	if err != nil {
@@ -132,14 +132,14 @@ func (mc *MilvusClient) CreateCollection(collectionName string, dimension, index
 	return nil
 }
 
-func (mc *MilvusClient) CreateIndex(collectionName, extraParams string, indexType int64) error {
+func (mc *MilvusClient) CreateIndex(collectionName string, nList int64, indexType milvus.IndexType) error {
 	ctx, cancel := context.WithTimeout(context.Background(), mc.timeout)
 	defer cancel()
 
 	indexParam := &milvus.IndexParam{
 		CollectionName: collectionName,
-		IndexType:      milvus.IndexType(indexType),
-		ExtraParams:    extraParams,
+		IndexType:      indexType,
+		ExtraParams:    fmt.Sprintf("{\"nlist\" : %d}", nList),
 	}
 
 	status, err := mc.milvus.CreateIndex(ctx, indexParam)

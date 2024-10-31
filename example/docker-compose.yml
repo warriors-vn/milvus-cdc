@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  milvus-one:
+    image: milvusdb/milvus:1.1.1-cpu-d061621-330cc6
+    container_name: milvus-one
+    ports:
+      - "19530:19530"  # Milvus API port
+      - "19121:19121"  # Monitoring port
+    environment:
+      DEPLOY_MODE: standalone  # Configure Milvus to run in standalone mode
+    volumes:
+      - milvus-data-one:/var/lib/milvus
+      - ./server_config.yaml:/var/lib/milvus/conf/server_config.yaml
+
+  milvus-two:
+    image: milvusdb/milvus:1.1.1-cpu-d061621-330cc6
+    container_name: milvus-two
+    ports:
+      - "29530:19530"  # Milvus API port
+      - "29121:19121"  # Monitoring port
+    environment:
+      DEPLOY_MODE: standalone  # Configure Milvus to run in standalone mode
+    volumes:
+      - milvus-data-two:/var/lib/milvus
+      - ./server_config.yaml:/var/lib/milvus/conf/server_config.yaml
+
+  milvus-three:
+    image: milvusdb/milvus:1.1.1-cpu-d061621-330cc6
+    container_name: milvus-three
+    ports:
+      - "39530:19530"  # Milvus API port
+      - "39121:19121"  # Monitoring port
+    environment:
+      DEPLOY_MODE: standalone  # Configure Milvus to run in standalone mode
+    volumes:
+      - milvus-data-three:/var/lib/milvus
+      - ./server_config.yaml:/var/lib/milvus/conf/server_config.yaml
+
+  milvus-em:
+    image: milvusdb/milvus-em:latest
+    container_name: milvus-em
+    ports:
+      - "3001:80"  # Milvus API port
+
+volumes:
+  milvus-data-one:
+  milvus-data-two:
+  milvus-data-three:

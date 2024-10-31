@@ -6,12 +6,10 @@ import (
 
 type BrokerFactory struct {
 	redisBroker *RedisBroker
-	channel     string
 }
 
-func NewBrokerFactory(channel string, redisBroker *RedisBroker) *BrokerFactory {
+func NewBrokerFactory(redisBroker *RedisBroker) *BrokerFactory {
 	return &BrokerFactory{
-		channel:     channel,
 		redisBroker: redisBroker,
 	}
 }

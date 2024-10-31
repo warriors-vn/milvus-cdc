@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/sirupsen/logrus"
 )
 
 type RedisBroker struct {
@@ -44,16 +45,22 @@ func (rb *RedisBroker) Stop() {
 
 func (rb *RedisBroker) pubSub(channel string) error {
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	subscriber := rb.redisCli.Subscribe(ctx, channel)
 	for i := 0; i < len(rb.milvus); i++ {
 		go func(idx int) {
+			subscriber := rb.redisCli.Subscribe(ctx, channel)
 			for {
 				message, err := subscriber.ReceiveMessage(ctx)
 				if err != nil {
 					return
 				}
 
-				_ = rb.handle(message.Payload, idx)
+				errHandle := rb.handle(message.Payload, idx)
+				if errHandle != nil {
+					logrus.Errorf("handle message is failed with input %v and err %v", message, errHandle)
+					continue
+				}
+
+				logrus.Infof("handle message is successfully with input %v", message)
 			}
 		}(i)
 	}
@@ -156,7 +163,7 @@ func (rb *RedisBroker) createCollection(cdc *MessageCDC, idx int) error {
 }
 
 func (rb *RedisBroker) createIndex(cdc *MessageCDC, idx int) error {
-	return rb.milvus[idx].CreateIndex(cdc.CollectionName, cdc.ExtraParams, cdc.IndexType)
+	return rb.milvus[idx].CreateIndex(cdc.CollectionName, cdc.NList, cdc.IndexType)
 }
 
 func (rb *RedisBroker) dropIndex(cdc *MessageCDC, idx int) error {
