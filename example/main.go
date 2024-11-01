@@ -13,7 +13,7 @@ import (
 
 func main() {
 	pubSub()
-	//queue()
+	queue()
 }
 
 func pubSub() {
