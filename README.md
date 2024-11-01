@@ -318,9 +318,12 @@ Don't hesitate to participate in the discussion to enhance the generic helpers i
 Contributing
 ------------
 
-* Ping me on instagram [@tuanelnino9](https://www.instagram.com/tuanelnino9) or [Facebook](https://www.facebook.com/tuanelnino9) or Linkedin [Tuan Nguyen Van](https://www.linkedin.com/in/tuan-nguyen-van-555315156) DMs, mentions, whatever, [send email](mailto:nguyenvantuan2391996@gmail.com) :))
-* Fork the [project](https://github.com/warriors-vn/go-dash)
-* Fix [open issues](https://github.com/warriors-vn/go-dash/issues) or request new features
+* Ping me on instagram [@tuanelnino9](https://www.instagram.com/tuanelnino9)
+* [Facebook](https://www.facebook.com/tuanelnino9)
+* Linkedin [Tuan Nguyen Van](https://www.linkedin.com/in/tuan-nguyen-van-555315156)
+* DMs, mentions, whatever, [send email](mailto:nguyenvantuan2391996@gmail.com) :))
+* Fork the [project](https://github.com/warriors-vn/milvus-cdc)
+* Fix [open issues](https://github.com/warriors-vn/milvus-cdc/issues) or request new features
 
 Don't hesitate :))
 
