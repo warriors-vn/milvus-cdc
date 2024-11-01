@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/milvus-io/milvus-sdk-go/milvus"
-	cdc "milvus-cdc"
+	cdc "github.com/warriors-vn/milvus-cdc"
 )
 
 func main() {

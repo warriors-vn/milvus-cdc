@@ -1,4 +1,4 @@
-module milvus-cdc
+module github.com/warriors-vn/milvus-cdc
 
 go 1.22.3
 
