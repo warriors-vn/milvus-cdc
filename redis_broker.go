@@ -90,7 +90,12 @@ func (rb *RedisBroker) queue(channel string) error {
 				wg.Add(1)
 				go func(idx int) {
 					defer wg.Done()
-					_ = rb.handle(message[1], idx)
+					errHandle := rb.handle(message[1], idx)
+					if errHandle != nil {
+						logrus.Errorf("handle message is failed with input %v and err %v", message, errHandle)
+					} else {
+						logrus.Infof("handle message is successfully with input %v", message)
+					}
 				}(i)
 			}
 
