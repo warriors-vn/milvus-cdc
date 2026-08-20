@@ -25,3 +25,9 @@ go.work.sum
 .env
 
 .idea
+
+# macOS
+.DS_Store
+
+# stray build output from `go build` inside example/
+/example/example
