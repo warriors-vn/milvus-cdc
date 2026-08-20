@@ -2,6 +2,7 @@ package milvus_cdc
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -31,4 +32,39 @@ func (r *RedisClient) LPush(ctx context.Context, queue string, value interface{}
 
 func (r *RedisClient) BRPop(ctx context.Context, queue string, timeout time.Duration) ([]string, error) {
 	return r.redis.BRPop(ctx, timeout, queue).Result()
+}
+
+func (r *RedisClient) XGroupCreateMkStream(ctx context.Context, stream, group, start string) error {
+	err := r.redis.XGroupCreateMkStream(ctx, stream, group, start).Err()
+	if err != nil && strings.Contains(err.Error(), "BUSYGROUP") {
+		return nil
+	}
+
+	return err
+}
+
+func (r *RedisClient) XReadGroup(ctx context.Context, group, consumer, stream string, block time.Duration) ([]redis.XMessage, error) {
+	res, err := r.redis.XReadGroup(ctx, &redis.XReadGroupArgs{
+		Group:    group,
+		Consumer: consumer,
+		Streams:  []string{stream, ">"},
+		Block:    block,
+	}).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(res) == 0 {
+		return nil, nil
+	}
+
+	return res[0].Messages, nil
+}
+
+func (r *RedisClient) XAck(ctx context.Context, stream, group string, ids ...string) error {
+	return r.redis.XAck(ctx, stream, group, ids...).Err()
+}
+
+func (r *RedisClient) XAdd(ctx context.Context, stream string, values map[string]interface{}) (string, error) {
+	return r.redis.XAdd(ctx, &redis.XAddArgs{Stream: stream, Values: values}).Result()
 }

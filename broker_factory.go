@@ -5,20 +5,22 @@ import (
 )
 
 type BrokerFactory struct {
-	redisBroker *RedisBroker
+	brokers map[string]IBrokerFactory
 }
 
-func NewBrokerFactory(redisBroker *RedisBroker) *BrokerFactory {
+// NewBrokerFactory registers a set of brokers by name, e.g.
+// NewBrokerFactory(map[string]IBrokerFactory{Redis: redisBroker, GoChannel: channelBroker}).
+func NewBrokerFactory(brokers map[string]IBrokerFactory) *BrokerFactory {
 	return &BrokerFactory{
-		redisBroker: redisBroker,
+		brokers: brokers,
 	}
 }
 
 func (bf *BrokerFactory) GetBrokerFactory(name string) (IBrokerFactory, error) {
-	switch name {
-	case Redis:
-		return bf.redisBroker, nil
+	broker, ok := bf.brokers[name]
+	if !ok {
+		return nil, fmt.Errorf("the broker is invaild")
 	}
 
-	return nil, fmt.Errorf("the broker is invaild")
+	return broker, nil
 }
