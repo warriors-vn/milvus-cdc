@@ -181,7 +181,9 @@ func TestDispatcher_Broadcast_ReportsEveryClient(t *testing.T) {
 	}
 
 	raw, _ := json.Marshal(&MessageCDC{Action: Insert, CollectionName: "c", Id: 1})
-	d.broadcast(string(raw))
+	if err := d.broadcast(string(raw)); err == nil {
+		t.Fatal("expected broadcast to return an error since client 1 fails")
+	}
 
 	mu.Lock()
 	defer mu.Unlock()

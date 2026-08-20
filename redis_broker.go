@@ -153,7 +153,7 @@ func (rb *RedisBroker) queue(channel string) error {
 				continue
 			}
 
-			rb.dispatcher.broadcast(message[1])
+			_ = rb.dispatcher.broadcast(message[1])
 		}
 	}()
 

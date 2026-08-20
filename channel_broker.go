@@ -69,7 +69,7 @@ func (cb *ChannelBroker) Start(channel, pattern string) error {
 				return nil
 			}
 
-			cb.dispatcher.broadcast(msg)
+			_ = cb.dispatcher.broadcast(msg)
 		}
 	}
 }
